@@ -44,6 +44,9 @@ type Scheduler interface {
 	// Update replaces the existing Job's JobDefinition with the provided
 	// JobDefinition. The Job's Job.ID() remains the same.
 	Update(uuid.UUID, JobDefinition, Task, ...JobOption) (Job, error)
+	// JobsWaitingInQueue number of jobs waiting in Queue in case of LimitModeWait
+	// In case of LimitModeReschedule or no limit it will be always zero
+	JobsWaitingInQueue() int
 }
 
 // -----------------------------------------------
@@ -676,6 +679,13 @@ func (s *scheduler) Shutdown() error {
 
 func (s *scheduler) Update(id uuid.UUID, jobDefinition JobDefinition, task Task, options ...JobOption) (Job, error) {
 	return s.addOrUpdateJob(id, jobDefinition, task, options)
+}
+
+func (s *scheduler) JobsWaitingInQueue() int {
+	if s.exec.limitMode != nil && s.exec.limitMode.mode == LimitModeWait {
+		return len(s.exec.limitMode.in)
+	}
+	return 0
 }
 
 // -----------------------------------------------
