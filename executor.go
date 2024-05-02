@@ -131,8 +131,8 @@ func (e *executor) start() {
 						// to work through the channel backlog. A hard limit of 1000 is in place
 						// at which point this call would block.
 						// TODO when metrics are added, this should increment a wait metric
-						e.limitMode.in <- jIn
 						e.sendOutForRescheduling(&jIn)
+						e.limitMode.in <- jIn
 					}
 				} else {
 					// no limit mode, so we're either running a regular job or
@@ -303,6 +303,10 @@ func (e *executor) singletonModeRunner(name string, in chan jobIn, wg *waitGroup
 			j := requestJobCtx(ctx, jIn.id, e.jobOutRequest)
 			cancel()
 			if j != nil {
+				// need to set shouldSendOut = false here, as there is a duplicative call to sendOutForRescheduling
+				// inside the runJob function that needs to be skipped. sendOutForRescheduling is previously called
+				// when the job is sent to the singleton mode runner.
+				jIn.shouldSendOut = false
 				e.runJob(*j, jIn)
 			}
 
