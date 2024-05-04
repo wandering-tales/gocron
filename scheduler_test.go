@@ -1816,35 +1816,37 @@ func TestScheduler_LastRunSingleton(t *testing.T) {
 
 	tests := []struct {
 		name string
-		f    func(t *testing.T, j Job)
+		f    func(t *testing.T, j Job, jobRan chan struct{})
 	}{
 		{
 			"simple",
-			func(t *testing.T, j Job) {},
+			func(t *testing.T, j Job, jobRan chan struct{}) {},
 		},
 		{
 			"with runNow",
-			func(t *testing.T, j Job) {
+			func(t *testing.T, j Job, jobRan chan struct{}) {
 				runTime := time.Now()
 				assert.NoError(t, j.RunNow())
 
 				// because we're using wait mode we need to wait here
 				// to make sure the job queued with RunNow has finished running
-				time.Sleep(time.Millisecond * 200)
+				<-jobRan
 				lastRun, err := j.LastRun()
 				assert.NoError(t, err)
-				assert.LessOrEqual(t, lastRun.Sub(runTime), time.Millisecond*125)
-				assert.GreaterOrEqual(t, lastRun.Sub(runTime), time.Millisecond*75)
+				assert.LessOrEqual(t, lastRun.Sub(runTime), time.Millisecond*225)
+				assert.GreaterOrEqual(t, lastRun.Sub(runTime), time.Millisecond*175)
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			jobRan := make(chan struct{}, 2)
 			s := newTestScheduler(t)
 			j, err := s.NewJob(
 				DurationJob(time.Millisecond*100),
 				NewTask(func() {
+					jobRan <- struct{}{}
 					time.Sleep(time.Millisecond * 200)
 				}),
 				WithSingletonMode(LimitModeWait),
@@ -1858,14 +1860,14 @@ func TestScheduler_LastRunSingleton(t *testing.T) {
 			assert.NoError(t, err)
 			assert.True(t, lastRun.IsZero())
 
-			time.Sleep(time.Millisecond * 200)
+			<-jobRan
 
 			lastRun, err = j.LastRun()
 			assert.NoError(t, err)
 			assert.LessOrEqual(t, lastRun.Sub(startTime), time.Millisecond*125)
 			assert.GreaterOrEqual(t, lastRun.Sub(startTime), time.Millisecond*75)
 
-			tt.f(t, j)
+			tt.f(t, j, jobRan)
 
 			assert.NoError(t, s.Shutdown())
 		})
