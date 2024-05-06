@@ -793,6 +793,14 @@ const (
 // WithLimitConcurrentJobs sets the limit and mode to be used by the
 // Scheduler for limiting the number of jobs that may be running at
 // a given time.
+//
+// Note: the limit mode selected for WithLimitConcurrentJobs takes initial
+// precedence in the event you are also running a limit mode at the job level
+// using WithSingletonMode.
+//
+// Warning: a single time consuming job can dominate your limit in the event
+// you are running both the scheduler limit WithLimitConcurrentJobs(1, LimitModeWait)
+// and a job limit WithSingletonMode(LimitModeReschedule).
 func WithLimitConcurrentJobs(limit uint, mode LimitMode) SchedulerOption {
 	return func(s *scheduler) error {
 		if limit == 0 {
