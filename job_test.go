@@ -417,6 +417,13 @@ func TestWithEventListeners(t *testing.T) {
 			nil,
 		},
 		{
+			"beforeJobRuns",
+			[]EventListener{
+				BeforeJobRuns(func(_ uuid.UUID, _ string) {}),
+			},
+			nil,
+		},
+		{
 			"afterJobRuns",
 			[]EventListener{
 				AfterJobRuns(func(_ uuid.UUID, _ string) {}),
@@ -431,9 +438,9 @@ func TestWithEventListeners(t *testing.T) {
 			nil,
 		},
 		{
-			"beforeJobRuns",
+			"afterJobRunsWithPanic",
 			[]EventListener{
-				BeforeJobRuns(func(_ uuid.UUID, _ string) {}),
+				AfterJobRunsWithPanic(func(_ uuid.UUID, _ string, _ any) {}),
 			},
 			nil,
 		},
@@ -487,13 +494,16 @@ func TestWithEventListeners(t *testing.T) {
 				return
 			}
 			var count int
+			if ij.beforeJobRuns != nil {
+				count++
+			}
 			if ij.afterJobRuns != nil {
 				count++
 			}
 			if ij.afterJobRunsWithError != nil {
 				count++
 			}
-			if ij.beforeJobRuns != nil {
+			if ij.afterJobRunsWithPanic != nil {
 				count++
 			}
 			if ij.afterLockError != nil {
@@ -632,4 +642,29 @@ func TestJob_NextRuns(t *testing.T) {
 			assert.NoError(t, s.Shutdown())
 		})
 	}
+}
+
+func TestJob_PanicOccurred(t *testing.T) {
+	gotCh := make(chan any)
+	s := newTestScheduler(t)
+	_, err := s.NewJob(
+		DurationJob(10*time.Millisecond),
+		NewTask(func() {
+			a := 0
+			_ = 1 / a
+		}),
+		WithEventListeners(
+			AfterJobRunsWithPanic(func(_ uuid.UUID, _ string, recoverData any) {
+				gotCh <- recoverData
+			}),
+		),
+	)
+	require.NoError(t, err)
+
+	s.Start()
+	got := <-gotCh
+	require.EqualError(t, got.(error), "runtime error: integer divide by zero")
+
+	require.NoError(t, s.Shutdown())
+	close(gotCh)
 }

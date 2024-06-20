@@ -368,7 +368,7 @@ func (e *executor) runJob(j internalJob, jIn jobIn) {
 	}
 
 	startTime := time.Now()
-	err := callJobFuncWithParams(j.function, j.parameters...)
+	err := e.callJobWithRecover(j)
 	if e.monitor != nil {
 		e.monitor.RecordJobTiming(startTime, time.Now(), j.id, j.name, j.tags)
 	}
@@ -379,6 +379,19 @@ func (e *executor) runJob(j internalJob, jIn jobIn) {
 		_ = callJobFuncWithParams(j.afterJobRuns, j.id, j.name)
 		e.incrementJobCounter(j, Success)
 	}
+}
+
+func (e *executor) callJobWithRecover(j internalJob) (err error) {
+	defer func() {
+		if recoverData := recover(); recoverData != nil {
+			_ = callJobFuncWithParams(j.afterJobRunsWithPanic, j.id, j.name, recoverData)
+
+			// if panic is occurred, we should return an error
+			err = ErrPanicRecovered
+		}
+	}()
+
+	return callJobFuncWithParams(j.function, j.parameters...)
 }
 
 func (e *executor) incrementJobCounter(j internalJob, status JobStatus) {
