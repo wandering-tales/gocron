@@ -354,6 +354,17 @@ func ExampleOneTimeJob() {
 			func() {},
 		),
 	)
+	// run job twice - once in 10 seconds and once in 55 minutes
+	n := time.Now()
+	_, _ = s.NewJob(
+		OneTimeJob(
+			OneTimeJobStartDateTimes(
+				n.Add(10*time.Second),
+				n.Add(55*time.Minute),
+			),
+		),
+		NewTask(func() {}),
+	)
 
 	s.Start()
 }

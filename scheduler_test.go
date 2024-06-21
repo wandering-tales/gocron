@@ -2089,6 +2089,188 @@ func TestScheduler_OneTimeJob(t *testing.T) {
 	}
 }
 
+func TestScheduler_AtTimesJob(t *testing.T) {
+	defer verifyNoGoroutineLeaks(t)
+
+	n := time.Now().UTC()
+
+	tests := []struct {
+		name      string
+		atTimes   []time.Time
+		fakeClock clockwork.FakeClock
+		assertErr require.ErrorAssertionFunc
+		// asserts things about schedules, advance time and perform new assertions
+		advanceAndAsserts []func(
+			t *testing.T,
+			j Job,
+			clock clockwork.FakeClock,
+			runs *atomic.Uint32,
+		)
+	}{
+		{
+			name:      "no at times",
+			atTimes:   []time.Time{},
+			fakeClock: clockwork.NewFakeClock(),
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrOneTimeJobStartDateTimePast)
+			},
+		},
+		{
+			name:      "all in the past",
+			atTimes:   []time.Time{n.Add(-1 * time.Second)},
+			fakeClock: clockwork.NewFakeClockAt(n),
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, ErrOneTimeJobStartDateTimePast)
+			},
+		},
+		{
+			name:      "one run 1 millisecond in the future",
+			atTimes:   []time.Time{n.Add(1 * time.Millisecond)},
+			fakeClock: clockwork.NewFakeClockAt(n),
+			advanceAndAsserts: []func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32){
+				func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32) {
+					require.Equal(t, uint32(0), runs.Load())
+
+					// last not initialized
+					lastRunAt, err := j.LastRun()
+					require.NoError(t, err)
+					require.Equal(t, time.Time{}, lastRunAt)
+
+					// next is now
+					nextRunAt, err := j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, n.Add(1*time.Millisecond), nextRunAt)
+
+					// advance and eventually run
+					clock.Advance(2 * time.Millisecond)
+					require.Eventually(t, func() bool {
+						return assert.Equal(t, uint32(1), runs.Load())
+					}, 3*time.Second, 100*time.Millisecond)
+
+					// last was run
+					lastRunAt, err = j.LastRun()
+					require.NoError(t, err)
+					require.WithinDuration(t, n.Add(1*time.Millisecond), lastRunAt, 1*time.Millisecond)
+
+					nextRunAt, err = j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, time.Time{}, nextRunAt)
+				},
+			},
+		},
+		{
+			name:      "one run in the past and one in the future",
+			atTimes:   []time.Time{n.Add(-1 * time.Millisecond), n.Add(1 * time.Millisecond)},
+			fakeClock: clockwork.NewFakeClockAt(n),
+			advanceAndAsserts: []func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32){
+				func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32) {
+					require.Equal(t, uint32(0), runs.Load())
+
+					// last not initialized
+					lastRunAt, err := j.LastRun()
+					require.NoError(t, err)
+					require.Equal(t, time.Time{}, lastRunAt)
+
+					// next is now
+					nextRunAt, err := j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, n.Add(1*time.Millisecond), nextRunAt)
+
+					// advance and eventually run
+					clock.Advance(2 * time.Millisecond)
+					require.Eventually(t, func() bool {
+						return assert.Equal(t, uint32(1), runs.Load())
+					}, 3*time.Second, 100*time.Millisecond)
+
+					// last was run
+					lastRunAt, err = j.LastRun()
+					require.NoError(t, err)
+					require.WithinDuration(t, n.Add(1*time.Millisecond), lastRunAt, 1*time.Millisecond)
+				},
+			},
+		},
+		{
+			name:      "two runs in the future",
+			atTimes:   []time.Time{n.Add(1 * time.Millisecond), n.Add(3 * time.Millisecond)},
+			fakeClock: clockwork.NewFakeClockAt(n),
+			advanceAndAsserts: []func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32){
+				func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32) {
+					require.Equal(t, uint32(0), runs.Load())
+
+					// last not initialized
+					lastRunAt, err := j.LastRun()
+					require.NoError(t, err)
+					require.Equal(t, time.Time{}, lastRunAt)
+
+					// next is now
+					nextRunAt, err := j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, n.Add(1*time.Millisecond), nextRunAt)
+
+					// advance and eventually run
+					clock.Advance(2 * time.Millisecond)
+					require.Eventually(t, func() bool {
+						return assert.Equal(t, uint32(1), runs.Load())
+					}, 3*time.Second, 100*time.Millisecond)
+
+					// last was run
+					lastRunAt, err = j.LastRun()
+					require.NoError(t, err)
+					require.WithinDuration(t, n.Add(1*time.Millisecond), lastRunAt, 1*time.Millisecond)
+
+					nextRunAt, err = j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, n.Add(3*time.Millisecond), nextRunAt)
+				},
+
+				func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32) {
+					// advance and eventually run
+					clock.Advance(2 * time.Millisecond)
+					require.Eventually(t, func() bool {
+						return assert.Equal(t, uint32(2), runs.Load())
+					}, 3*time.Second, 100*time.Millisecond)
+
+					// last was run
+					lastRunAt, err := j.LastRun()
+					require.NoError(t, err)
+					require.WithinDuration(t, n.Add(3*time.Millisecond), lastRunAt, 1*time.Millisecond)
+
+					nextRunAt, err := j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, time.Time{}, nextRunAt)
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestScheduler(t, WithClock(tt.fakeClock))
+			t.Cleanup(func() {
+				require.NoError(t, s.Shutdown())
+			})
+
+			runs := atomic.Uint32{}
+			j, err := s.NewJob(
+				OneTimeJob(OneTimeJobStartDateTimes(tt.atTimes...)),
+				NewTask(func() {
+					runs.Add(1)
+				}),
+			)
+			if tt.assertErr != nil {
+				tt.assertErr(t, err)
+			} else {
+				require.NoError(t, err)
+				s.Start()
+
+				for _, advanceAndAssert := range tt.advanceAndAsserts {
+					advanceAndAssert(t, j, tt.fakeClock, &runs)
+				}
+			}
+		})
+	}
+}
+
 func TestScheduler_WithLimitedRuns(t *testing.T) {
 	defer verifyNoGoroutineLeaks(t)
 
