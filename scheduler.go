@@ -357,18 +357,16 @@ func (s *scheduler) selectExecJobsOutCompleted(id uuid.UUID) {
 		return
 	}
 
-	// if the job has more than one nextScheduled time,
+	// if the job has nextScheduled time in the past,
 	// we need to remove any that are in the past.
-	if len(j.nextScheduled) > 1 {
-		var newNextScheduled []time.Time
-		for _, t := range j.nextScheduled {
-			if t.Before(s.now()) {
-				continue
-			}
-			newNextScheduled = append(newNextScheduled, t)
+	var newNextScheduled []time.Time
+	for _, t := range j.nextScheduled {
+		if t.Before(s.now()) {
+			continue
 		}
-		j.nextScheduled = newNextScheduled
+		newNextScheduled = append(newNextScheduled, t)
 	}
+	j.nextScheduled = newNextScheduled
 
 	// if the job has a limited number of runs set, we need to
 	// check how many runs have occurred and stop running this
