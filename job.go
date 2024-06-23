@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"sort"
 	"strings"
 	"time"
 
@@ -448,11 +447,9 @@ type oneTimeJobDefinition struct {
 
 func (o oneTimeJobDefinition) setup(j *internalJob, _ *time.Location, now time.Time) error {
 	sortedTimes := o.startAt(j)
-	sort.Slice(sortedTimes, func(i, j int) bool {
-		return sortedTimes[i].Before(sortedTimes[j])
-	})
+	slices.SortStableFunc(sortedTimes, ascendingTime)
 	// keep only schedules that are in the future
-	idx, found := slices.BinarySearchFunc(sortedTimes, now, timeCmp())
+	idx, found := slices.BinarySearchFunc(sortedTimes, now, ascendingTime)
 	if found {
 		idx++
 	}
@@ -496,18 +493,6 @@ func OneTimeJobStartDateTimes(times ...time.Time) OneTimeJobStartAtOption {
 func OneTimeJob(startAt OneTimeJobStartAtOption) JobDefinition {
 	return oneTimeJobDefinition{
 		startAt: startAt,
-	}
-}
-
-func timeCmp() func(element time.Time, target time.Time) int {
-	return func(element time.Time, target time.Time) int {
-		if element.Equal(target) {
-			return 0
-		}
-		if element.Before(target) {
-			return -1
-		}
-		return 1
 	}
 }
 
@@ -917,7 +902,7 @@ type oneTimeJob struct {
 // lastRun: 8 => [idx=3,found=found] => next is none
 // lastRun: 9 => [idx=3,found=found] => next is none
 func (o oneTimeJob) next(lastRun time.Time) time.Time {
-	idx, found := slices.BinarySearchFunc(o.sortedTimes, lastRun, timeCmp())
+	idx, found := slices.BinarySearchFunc(o.sortedTimes, lastRun, ascendingTime)
 	// if found, the next run is the following index
 	if found {
 		idx++

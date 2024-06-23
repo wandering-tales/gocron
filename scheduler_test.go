@@ -2190,8 +2190,8 @@ func TestScheduler_AtTimesJob(t *testing.T) {
 			},
 		},
 		{
-			name:      "two runs in the future",
-			atTimes:   []time.Time{n.Add(1 * time.Millisecond), n.Add(3 * time.Millisecond)},
+			name:      "two runs in the future - order is maintained even if times are provided out of order",
+			atTimes:   []time.Time{n.Add(3 * time.Millisecond), n.Add(1 * time.Millisecond)},
 			fakeClock: clockwork.NewFakeClockAt(n),
 			advanceAndAsserts: []func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32){
 				func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32) {
