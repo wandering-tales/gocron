@@ -617,13 +617,8 @@ func (s *scheduler) addOrUpdateJob(id uuid.UUID, definition JobDefinition, taskW
 	case <-s.shutdownCtx.Done():
 	}
 
-	return &job{
-		id:            j.id,
-		name:          j.name,
-		tags:          slices.Clone(j.tags),
-		jobOutRequest: s.jobOutRequestCh,
-		runJobRequest: s.runJobRequestCh,
-	}, nil
+	out := s.jobFromInternalJob(j)
+	return &out, nil
 }
 
 func (s *scheduler) RemoveByTags(tags ...string) {
