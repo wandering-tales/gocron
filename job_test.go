@@ -646,6 +646,7 @@ func TestJob_NextRuns(t *testing.T) {
 
 func TestJob_PanicOccurred(t *testing.T) {
 	gotCh := make(chan any)
+	errCh := make(chan error)
 	s := newTestScheduler(t)
 	_, err := s.NewJob(
 		DurationJob(10*time.Millisecond),
@@ -656,6 +657,8 @@ func TestJob_PanicOccurred(t *testing.T) {
 		WithEventListeners(
 			AfterJobRunsWithPanic(func(_ uuid.UUID, _ string, recoverData any) {
 				gotCh <- recoverData
+			}), AfterJobRunsWithError(func(_ uuid.UUID, _ string, err error) {
+				errCh <- err
 			}),
 		),
 	)
@@ -665,6 +668,11 @@ func TestJob_PanicOccurred(t *testing.T) {
 	got := <-gotCh
 	require.EqualError(t, got.(error), "runtime error: integer divide by zero")
 
+	err = <-errCh
+	require.ErrorIs(t, err, ErrPanicRecovered)
+	require.EqualError(t, err, "gocron: panic recovered from runtime error: integer divide by zero")
+
 	require.NoError(t, s.Shutdown())
 	close(gotCh)
+	close(errCh)
 }
