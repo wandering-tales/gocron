@@ -306,7 +306,8 @@ func (s *scheduler) selectExecJobsOutForRescheduling(id uuid.UUID) {
 		// so we don't need to reschedule it.
 		return
 	}
-	var scheduleFrom time.Time
+
+	scheduleFrom := j.lastRun
 	if len(j.nextScheduled) > 0 {
 		// always grab the last element in the slice as that is the furthest
 		// out in the future and the time from which we want to calculate
@@ -315,12 +316,17 @@ func (s *scheduler) selectExecJobsOutForRescheduling(id uuid.UUID) {
 		scheduleFrom = j.nextScheduled[len(j.nextScheduled)-1]
 	}
 
+	if scheduleFrom.IsZero() {
+		scheduleFrom = j.startTime
+	}
+
 	next := j.next(scheduleFrom)
 	if next.IsZero() {
 		// the job's next function will return zero for OneTime jobs.
 		// since they are one time only, they do not need rescheduling.
 		return
 	}
+
 	if next.Before(s.now()) {
 		// in some cases the next run time can be in the past, for example:
 		// - the time on the machine was incorrect and has been synced with ntp
@@ -426,6 +432,7 @@ func (s *scheduler) selectNewJob(in newJobIn) {
 				}
 			})
 		}
+		j.startTime = next
 		j.nextScheduled = append(j.nextScheduled, next)
 	}
 
@@ -477,6 +484,7 @@ func (s *scheduler) selectStart() {
 				}
 			})
 		}
+		j.startTime = next
 		j.nextScheduled = append(j.nextScheduled, next)
 		s.jobs[id] = j
 	}
