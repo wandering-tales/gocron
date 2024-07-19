@@ -358,6 +358,10 @@ func (e *executor) runJob(j internalJob, jIn jobIn) {
 	default:
 	}
 
+	if j.stopTimeReached(e.clock.Now()) {
+		return
+	}
+
 	if e.elector != nil {
 		if err := e.elector.IsLeader(j.ctx); err != nil {
 			e.sendOutForRescheduling(&jIn)

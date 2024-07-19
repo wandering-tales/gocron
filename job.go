@@ -38,6 +38,7 @@ type internalJob struct {
 	limitRunsTo        *limitRunsTo
 	startTime          time.Time
 	startImmediately   bool
+	stopTime           time.Time
 	// event listeners
 	afterJobRuns          func(jobID uuid.UUID, jobName string)
 	beforeJobRuns         func(jobID uuid.UUID, jobName string)
@@ -58,6 +59,13 @@ func (j *internalJob) stop() {
 		j.timer.Stop()
 	}
 	j.cancel()
+}
+
+func (j *internalJob) stopTimeReached(now time.Time) bool {
+	if j.stopTime.IsZero() {
+		return false
+	}
+	return j.stopTime.Before(now)
 }
 
 // task stores the function and parameters
@@ -594,7 +602,37 @@ func WithStartDateTime(start time.Time) StartAtOption {
 		if start.IsZero() || start.Before(now) {
 			return ErrWithStartDateTimePast
 		}
+		if !j.stopTime.IsZero() && j.stopTime.Before(start) {
+			return ErrStartTimeLaterThanEndTime
+		}
 		j.startTime = start
+		return nil
+	}
+}
+
+// WithStopAt sets the option for stopping the job from running
+// after the specified time.
+func WithStopAt(option StopAtOption) JobOption {
+	return func(j *internalJob, now time.Time) error {
+		return option(j, now)
+	}
+}
+
+// StopAtOption defines options for stopping the job
+type StopAtOption func(*internalJob, time.Time) error
+
+// WithStopDateTime sets the final date & time after which the job should stop.
+// This must be in the future and should be after the startTime (if specified).
+// The job's final run may be at the stop time, but not after.
+func WithStopDateTime(end time.Time) StopAtOption {
+	return func(j *internalJob, now time.Time) error {
+		if end.IsZero() || end.Before(now) {
+			return ErrWithStopDateTimePast
+		}
+		if end.Before(j.startTime) {
+			return ErrStopTimeEarlierThanStartTime
+		}
+		j.stopTime = end
 		return nil
 	}
 }
