@@ -2325,6 +2325,59 @@ func TestScheduler_AtTimesJob(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			name:      "two runs in the future - order is maintained even if times are provided out of order - deduplication",
+			atTimes:   []time.Time{n.Add(3 * time.Millisecond), n.Add(1 * time.Millisecond), n.Add(1 * time.Millisecond), n.Add(3 * time.Millisecond)},
+			fakeClock: clockwork.NewFakeClockAt(n),
+			advanceAndAsserts: []func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32){
+				func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32) {
+					require.Equal(t, uint32(0), runs.Load())
+
+					// last not initialized
+					lastRunAt, err := j.LastRun()
+					require.NoError(t, err)
+					require.Equal(t, time.Time{}, lastRunAt)
+
+					// next is now
+					nextRunAt, err := j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, n.Add(1*time.Millisecond), nextRunAt)
+
+					// advance and eventually run
+					clock.Advance(2 * time.Millisecond)
+					require.Eventually(t, func() bool {
+						return assert.Equal(t, uint32(1), runs.Load())
+					}, 3*time.Second, 100*time.Millisecond)
+
+					// last was run
+					lastRunAt, err = j.LastRun()
+					require.NoError(t, err)
+					require.WithinDuration(t, n.Add(1*time.Millisecond), lastRunAt, 1*time.Millisecond)
+
+					nextRunAt, err = j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, n.Add(3*time.Millisecond), nextRunAt)
+				},
+
+				func(t *testing.T, j Job, clock clockwork.FakeClock, runs *atomic.Uint32) {
+					// advance and eventually run
+					clock.Advance(2 * time.Millisecond)
+					require.Eventually(t, func() bool {
+						return assert.Equal(t, uint32(2), runs.Load())
+					}, 3*time.Second, 100*time.Millisecond)
+
+					// last was run
+					lastRunAt, err := j.LastRun()
+					require.NoError(t, err)
+					require.WithinDuration(t, n.Add(3*time.Millisecond), lastRunAt, 1*time.Millisecond)
+
+					nextRunAt, err := j.NextRun()
+					require.NoError(t, err)
+					require.Equal(t, time.Time{}, nextRunAt)
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
