@@ -5,6 +5,7 @@
 //
 //	mockgen -destination=mocks/scheduler.go -package=gocronmocks . Scheduler
 //
+
 // Package gocronmocks is a generated GoMock package.
 package gocronmocks
 
@@ -51,6 +52,20 @@ func (m *MockScheduler) Jobs() []gocron.Job {
 func (mr *MockSchedulerMockRecorder) Jobs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Jobs", reflect.TypeOf((*MockScheduler)(nil).Jobs))
+}
+
+// JobsWaitingInQueue mocks base method.
+func (m *MockScheduler) JobsWaitingInQueue() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "JobsWaitingInQueue")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// JobsWaitingInQueue indicates an expected call of JobsWaitingInQueue.
+func (mr *MockSchedulerMockRecorder) JobsWaitingInQueue() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JobsWaitingInQueue", reflect.TypeOf((*MockScheduler)(nil).JobsWaitingInQueue))
 }
 
 // NewJob mocks base method.
