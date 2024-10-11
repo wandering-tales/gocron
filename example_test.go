@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/go-co-op/gocron/v2" // nolint:revive
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	. "github.com/wandering-tales/gocron/v2" // nolint:revive
 )
 
 var _ Locker = new(errorLocker)
